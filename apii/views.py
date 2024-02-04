@@ -69,66 +69,38 @@ def get_form(request, form_id):
         # Assuming 'forms' is the collection for form information
         forms_collection = db['forms']
 
-        # Retrieve the specific form by ID
-        form = forms_collection.find_one({'_id': ObjectId(form_id)})
+        # Fetch the form details based on the form ID
+        form_document = forms_collection.find_one({'_id': ObjectId(form_id)})
 
-        if form:
-            # Format the form data as needed
-            formatted_form = {
-                'form_id': str(ObjectId(str(form['_id']))),
-                'form_title': form['form_title'],
-                'questions': form['components'],
-                # Add more form details as needed
-            }
+        if not form_document:
+            return JsonResponse({'message': 'Form not found'}, status=404)
 
-            return Response(formatted_form)
-        else:
-            return Response({'error': 'Form not found'}, status=404)
-
-    except pymongo.errors.OperationFailure as e:
-        # Handle the case where the provided form_id is not a valid ObjectId
-        print(f"Invalid form_id: {form_id}")
-        return Response({'error': 'Invalid form_id'}, status=400)
-
+        return JsonResponse({
+            'form_title': form_document['form_title'],
+            'components': form_document['components'],
+        })
     except Exception as e:
-        # Handle other exceptions, log them, and return an error response
-        print(f"An error occurred: {e}")
-        return Response({'error': 'An error occurred while retrieving the form'}, status=500)
+        return JsonResponse({'message': f'Error fetching form: {str(e)}'}, status=500)
 
-    
-@api_view(['PUT'])
+@api_view(['POST'])
 def edit_form(request, form_id):
     try:
+        form_data = request.data
+        form_title = form_data.get('formTitle')
+        components = form_data.get('components')
+
         # Assuming 'forms' is the collection for form information
         forms_collection = db['forms']
 
-        # Retrieve the specific form by ID
-        form = forms_collection.find_one({'_id': ObjectId(form_id)})
-
-        if not form:
-            return Response({'error': 'Form not found'}, status=404)
-
-        # Extract form data from the request
-        form_data = request.data
-
-        # Update form fields based on the request data
-        if 'form_title' in form_data:
-            form['form_title'] = form_data['form_title']
-
-        if 'questions' in form_data:
-            form['components'] = form_data['questions']
-
-        # Use update_one with $set to update specific fields
+        # Update the existing document in the forms collection for the edited form
         forms_collection.update_one(
             {'_id': ObjectId(form_id)},
-            {'$set': {'form_title': form_data.get('form_title', form['form_title']),
-                      'components': form_data.get('questions', form['components'])}
-            }
+            {'$set': {
+                'form_title': form_title,
+                'components': components if components else [],
+            }}
         )
 
-        return Response({'message': 'Form updated successfully'})
-
+        return JsonResponse({'message': f'Form {form_title} edited successfully with ID: {form_id}'})
     except Exception as e:
-        # Handle the exception, log it, and return an error response
-        print(f"An error occurred: {e}")
-        return Response({'error': 'An error occurred while updating the form'}, status=500)
+        return JsonResponse({'message': f'Error editing form: {str(e)}'},status=500)
